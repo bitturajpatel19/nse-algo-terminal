@@ -1,0 +1,75 @@
+{
+  "project": "NSE Algo Terminal",
+  "phase": 1,
+  "status": "frontend-prototype",
+  "broker": "Zerodha Kite Connect (planned; not connected)",
+  "market_scope": [
+    "NSE F&O stock options",
+    "NSE index options",
+    "available expiries"
+  ],
+  "requirements": {
+    "option_chain": [
+      "CE/PE",
+      "strike",
+      "LTP",
+      "bid/ask",
+      "OI",
+      "change in OI",
+      "volume",
+      "IV",
+      "PCR",
+      "Greeks where available"
+    ],
+    "scanners": [
+      "volume activity",
+      "OI change",
+      "premium movement",
+      "IV",
+      "PCR",
+      "unusual activity"
+    ],
+    "trading_modes": [
+      "paper",
+      "live (locked until validation)"
+    ],
+    "strategies": [
+      "multiple simultaneous strategies",
+      "multiple legs per strategy",
+      "custom entry sequence",
+      "custom leg-stop-loss action",
+      "per-leg SL/target",
+      "strategy-level SL/target",
+      "trailing stop",
+      "re-entry",
+      "partial exits",
+      "quantity adjustment"
+    ],
+    "safety": [
+      "partial-fill and rejection handling",
+      "order reconciliation",
+      "duplicate-order prevention",
+      "daily max loss",
+      "max exposure",
+      "capital allocation",
+      "API disconnect protection",
+      "emergency square-off",
+      "audit log"
+    ]
+  },
+  "implementation_phases": [
+    "Backend, database, authentication, secrets management",
+    "NSE instrument master and Kite market-data/WebSocket",
+    "Paper execution simulator",
+    "Multi-leg execution state machine and reconciliation",
+    "Portfolio risk manager and audit logging",
+    "Live trading integration after current regulatory/broker checks and end-to-end validation"
+  ],
+  "explicit_non_goals_for_phase_1": [
+    "live market data",
+    "broker authentication",
+    "real order execution",
+    "production risk enforcement"
+  ],
+  "security": "Never store broker secrets or access tokens in frontend code or source control."
+}
