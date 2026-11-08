@@ -26,3 +26,9 @@ This is a frontend preview only. No live NSE market feed, current contract maste
 
 ## Security
 Never commit API keys, API secrets, access tokens, PINs, TOTP seeds or other broker credentials to this repository or frontend code. Credentials must remain server-side in a secure secret store.
+
+
+## Required study mode: market-closed option chain
+The Option Chain must remain useful after NSE market hours. When the market is closed, show the latest available contract prices/previous-session close for every available strike in the selected underlying and expiry, clearly labelled **MARKET CLOSED** with the exchange date and last-traded timestamp where available. Keep CE and PE side-by-side and retain OI, change in OI and session volume only when returned by the API; distinguish stale/unavailable bid-ask quotes from live quotes. Do not imply that closed-session values are executable live prices.
+
+For reliable study history, the backend should save an end-of-session option-chain snapshot for all selected active F&O contracts (instrument token, symbol, expiry, strike, CE/PE, LTP/close, OHLC, volume, OI, quote timestamp and available depth fields). This archive starts from the date integration is enabled. Kite historical candles alone do not recreate a complete historical chain for past dates or expired strikes, so older chain history must not be fabricated.
