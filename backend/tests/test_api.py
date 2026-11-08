@@ -31,8 +31,8 @@ def test_unsupported_underlying_is_rejected_before_auth():
 
 def test_option_chain_rejects_malformed_expiry():
     response = client.get("/market/option-chain?underlying=NIFTY&expiry=next-week")
-    assert response.status_code == 401 or response.status_code == 503
-    # Authentication/configuration is checked before expiry parsing in this route.
+    assert response.status_code == 400
+    assert "YYYY-MM-DD" in response.json()["detail"]
 
 
 def test_option_chain_snapshot_shape(monkeypatch):
