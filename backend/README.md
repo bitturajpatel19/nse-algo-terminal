@@ -1,37 +1,35 @@
 # NSE Algo Terminal backend
 
-Secure server-side foundation for the Zerodha Kite Connect integration.
+FastAPI backend for a read-only Zerodha Kite Connect market-data integration.
 
-## Current capabilities
-- FastAPI health and readiness endpoints.
-- Starts the official Kite login flow at `/kite/login`.
-- Handles the callback at `/kite/callback` and exchanges the one-time request token on the server.
-- Keeps the access token in process memory; API responses never expose it.
-- Does not place orders or stream market data yet.
+## Implemented
+- Secure server-side Kite login redirect: `/kite/login`.
+- Callback exchange: `/kite/callback`; access token never appears in API responses.
+- Session status: `/kite/session/status`.
+- Readiness and health checks.
+- Daily NFO instrument-master download/cache.
+- Read-only near-ATM index option-chain quote snapshot: `/market/option-chain?underlying=NIFTY`.
+- Supports NIFTY, BANKNIFTY, FINNIFTY and MIDCPNIFTY; nearest expiry by default, or pass `expiry=YYYY-MM-DD`.
+- Uses Kite quotes for LTP, OI, volume and top bid/ask where provided.
+- No order placement and no live WebSocket streaming yet.
 
-## Local development setup
-1. Install Python 3.11 or newer.
-2. From this folder create a virtual environment: `python -m venv .venv`.
-3. Activate it and install: `pip install -r requirements.txt`.
-4. Copy `.env.example` to `.env`.
-5. Add your own Kite API key and secret to the local `.env` file. Never commit it or paste credentials into chat.
-6. Confirm the app's Redirect URL is exactly `http://127.0.0.1:8000/kite/callback` for local testing.
-7. Run: `uvicorn app.main:app --host 127.0.0.1 --port 8000`.
-8. Open `http://127.0.0.1:8000/kite/login` in the same computer's browser and complete the Zerodha login.
-9. Check `http://127.0.0.1:8000/kite/session/status`. It reports authentication status but never the access token.
+## Local setup
+1. Install Python 3.11+ and run `pip install -r requirements.txt`.
+2. Copy `.env.example` to `.env`.
+3. Put API key and secret only in the private local environment file / hosting secret manager. Never commit or share them.
+4. For local testing, the app Redirect URL must be `http://127.0.0.1:8000/kite/callback`.
+5. Run `uvicorn app.main:app --host 127.0.0.1 --port 8000` from this folder.
+6. Open `http://127.0.0.1:8000/kite/login`, complete Zerodha login, then test `/market/option-chain?underlying=NIFTY`.
 
-## Important security and deployment notes
-- The `.env` file, API key, API secret, request token, access token, PIN and TOTP seed must never be committed to GitHub or pasted into chat.
-- This starter keeps the access token only in process memory. Restarting the backend clears it; daily Kite re-authentication is expected.
-- Do not deploy this public development starter as-is. Before cloud deployment, confirm the currently applicable Zerodha/NSE hosting, static-IP and retail-algo requirements, use HTTPS, restrict network access, and add secure persistent secret/token handling.
-- No live order endpoint exists. Live orders remain disabled until paper testing, order-state reconciliation and compliance checks are complete.
+## Deployment and safety
+- This development starter stores the access token in process memory only; a restart clears it and daily login is required.
+- Before cloud deployment, verify current Zerodha/NSE retail-algo hosting and static-IP requirements. Use approved hosting, HTTPS, restricted access and a proper secret manager.
+- Do not expose the API publicly without authentication/rate limiting. Do not put API credentials in frontend HTML, GitHub, browser storage or chat.
+- Quote snapshot endpoint is read-only. No live order API exists.
+- Historical candles are distinct from historical full option-chain snapshots. Archive only data permitted by the broker/data licence, and do not claim old chain snapshots that were not saved.
 
-## Next implementation steps
-1. Add secure instrument-master download and symbol/token lookup.
-2. Add Kite WebSocket market-data service and a dashboard stream.
-3. Add historical candle retrieval and permitted snapshot storage.
-4. Add paper execution, order-state reconciliation and risk controls.
-5. Only then evaluate live order integration under current broker/exchange requirements.
-
-## Data limitations
-Use only data and market depth exposed by the user's Kite Connect subscription/API. Historical candles do not recreate a complete historical option chain or tick-by-tick order-book archive.
+## Next work
+1. Add WebSocket tick streaming and a secured browser feed.
+2. Add snapshot persistence with timestamped archive.
+3. Add paper-trading execution, fill simulation and risk controls.
+4. Validate disconnect/reconnect and order reconciliation before considering any live order capability.
