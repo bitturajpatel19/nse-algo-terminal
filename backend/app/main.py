@@ -174,7 +174,13 @@ def option_chain(
     expiries = sorted({x["expiry"] for x in contracts})
     if not expiries:
         raise HTTPException(status_code=404, detail="No active option contracts found in current NFO instrument master")
-    chosen_expiry = date.fromisoformat(expiry) if expiry else expiries[0]
+    if expiry:
+        try:
+            chosen_expiry = date.fromisoformat(expiry)
+        except ValueError:
+            raise HTTPException(status_code=400, detail="Invalid expiry format. Use YYYY-MM-DD.")
+    else:
+        chosen_expiry = expiries[0]
     if chosen_expiry not in expiries:
         raise HTTPException(status_code=404, detail="Requested expiry is not present in current NFO instrument master")
     expiry_contracts = [x for x in contracts if x["expiry"] == chosen_expiry]
@@ -220,6 +226,11 @@ def option_chain(
         "rows": rows,
         "as_of": spot_quote.get("timestamp"),
         "note": "Read-only quote snapshot, not a continuous WebSocket stream. OI change, IV and Greeks are not supplied in this response.",
+        "data_quality": {
+            "missing_call_quotes": sum(1 for row in rows if not row.get("ce") or row["ce"].get("ltp") is None),
+            "missing_put_quotes": sum(1 for row in rows if not row.get("pe") or row["pe"].get("ltp") is None),
+            "quote_snapshot_only": True,
+        },
     }
 
 
