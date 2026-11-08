@@ -155,6 +155,12 @@ def option_chain(
 ):
     """Read-only near-ATM option chain from current Kite quotes and NFO instruments."""
     name = underlying.strip().upper()
+    requested_expiry = None
+    if expiry:
+        try:
+            requested_expiry = date.fromisoformat(expiry)
+        except ValueError:
+            raise HTTPException(status_code=400, detail="Invalid expiry format. Use YYYY-MM-DD.")
     if name not in SPOT_SYMBOLS:
         raise HTTPException(status_code=400, detail="Supported index underlyings: NIFTY, BANKNIFTY, FINNIFTY, MIDCPNIFTY")
     kite = _kite_client()
@@ -174,13 +180,7 @@ def option_chain(
     expiries = sorted({x["expiry"] for x in contracts})
     if not expiries:
         raise HTTPException(status_code=404, detail="No active option contracts found in current NFO instrument master")
-    if expiry:
-        try:
-            chosen_expiry = date.fromisoformat(expiry)
-        except ValueError:
-            raise HTTPException(status_code=400, detail="Invalid expiry format. Use YYYY-MM-DD.")
-    else:
-        chosen_expiry = expiries[0]
+    chosen_expiry = requested_expiry or expiries[0]
     if chosen_expiry not in expiries:
         raise HTTPException(status_code=404, detail="Requested expiry is not present in current NFO instrument master")
     expiry_contracts = [x for x in contracts if x["expiry"] == chosen_expiry]
