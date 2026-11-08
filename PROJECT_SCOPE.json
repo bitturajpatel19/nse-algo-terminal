@@ -55,11 +55,42 @@
       "API disconnect protection",
       "emergency square-off",
       "audit log"
-    ]
+    ],
+    "market_closed_study_mode": {
+      "enabled": true,
+      "display": [
+        "all available strikes for selected underlying and expiry",
+        "CE/PE side-by-side",
+        "last available premium / previous-session close",
+        "market closed badge",
+        "exchange date and last-traded timestamp where available",
+        "OI, change in OI and session volume when API provides them"
+      ],
+      "quote_rules": [
+        "never label stale close as live",
+        "do not present stale bid/ask as executable",
+        "show unavailable fields as blank or unavailable"
+      ],
+      "archive_from_integration_date": [
+        "instrument token",
+        "tradingsymbol",
+        "expiry",
+        "strike",
+        "CE/PE",
+        "LTP and close",
+        "OHLC",
+        "volume",
+        "OI",
+        "quote timestamp",
+        "available depth fields"
+      ],
+      "limitation": "Kite historical candles do not recreate a complete historical option-chain snapshot or past chain for expired contracts; archive snapshots prospectively and never fabricate older chain data."
+    }
   },
   "implementation_phases": [
     "Backend, database, authentication, secrets management",
     "NSE instrument master and Kite market-data/WebSocket",
+    "Market-closed option-chain study view and end-of-session snapshot archive using Kite-available quotes",
     "Paper execution simulator",
     "Multi-leg execution state machine and reconciliation",
     "Portfolio risk manager and audit logging",
