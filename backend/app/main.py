@@ -17,13 +17,24 @@ from kiteconnect import KiteConnect
 load_dotenv(Path(__file__).resolve().parents[1] / ".env")
 
 app = FastAPI(title="NSE Algo Terminal API", version="0.3.0")
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=[
+
+# Production browser origins must be explicitly configured. An empty list is
+# safer than allowing arbitrary websites to call this backend.
+_allowed_origins = [
+    origin.strip().rstrip("/")
+    for origin in os.getenv("ALLOWED_ORIGINS", "").split(",")
+    if origin.strip()
+]
+if os.getenv("APP_ENV", "development").lower() != "production":
+    _allowed_origins.extend([
         "http://localhost:3000", "http://127.0.0.1:3000",
         "http://localhost:5500", "http://127.0.0.1:5500",
-    ],
-    allow_credentials=True,
+    ])
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=sorted(set(_allowed_origins)),
+    allow_credentials=False,
     allow_methods=["GET"],
     allow_headers=["Content-Type", "Authorization"],
 )
