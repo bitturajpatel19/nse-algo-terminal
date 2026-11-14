@@ -1,34 +1,35 @@
-# NSE Algo Terminal — Professional UI Preview
+# NSE Algo Terminal
 
-A standalone workspace for an NSE F&O multi-strategy options terminal, with Zerodha Kite Connect integration planned for later phases.
+A responsive NSE F&O options workspace with a developing Zerodha Kite Connect backend.
 
-## Current build: frontend preview
-- Professional dark trading-terminal layout with responsive mobile navigation
-- Overview dashboard and system-health panel
-- Universal option-chain workspace for index and stock F&O, with expiry selectors, exact strike builder, CE/PE layout, and Live / Historical Replay controls
-- Market scanner workspace for volume, OI, premium, IV and PCR signals
-- Multi-strategy manager and multi-leg strategy draft builder
-- Per-strategy entry sequencing, stop-loss action and rejected/unfilled-leg policy
-- Per-leg quantity, order type, stop loss and target fields
-- Separate Paper, Live (locked), order-history and portfolio-risk workspaces
-- Global risk policy configuration preview and live-readiness checklist
+## Current implementation status
+- Responsive dark trading-terminal frontend preview.
+- FastAPI backend with Kite login/callback and server-side access-token handling.
+- Read-only option-chain quote snapshot for NIFTY, BANKNIFTY, FINNIFTY and MIDCPNIFTY.
+- NFO instrument-master download/cache and health/readiness endpoints.
+- Automated backend test suite and GitHub Actions workflow.
+- Dockerfile and Docker Compose foundation for a future cloud VPS deployment.
+- Live order placement remains disabled and is not implemented.
 
-## Important status
-This is a frontend preview only. No live NSE market feed, current contract master, Kite Connect authentication, backend, persistent database, historical data connector, paper execution simulator, risk enforcement, or real order execution is connected. The historical replay controls are UI-only until the backend connector is built. Any figures or preset strategies shown are illustrative and must not be treated as market data or trading signals.
+## Current limitations
+- The frontend is still a preview; it is not yet connected to a production live market feed.
+- Option-chain endpoint currently returns quote snapshots, not a continuous WebSocket stream.
+- Current option-chain support is limited to the four index underlyings listed above; F&O stock contracts are not yet implemented in this endpoint.
+- Kite access token is held in process memory. The backend is intentionally configured for one worker; restart requires a new login.
+- No database-backed historical option-chain archive, paper execution engine, or live order execution is implemented.
+- Figures shown in preview UI are illustrative, not live trading signals.
+
+## Cloud VPS readiness
+Deployment files and a step-by-step preparation guide are in `backend/`. They do not mean a VPS has been purchased, configured, or deployed. Before public deployment, we still need a provider with a fixed static public IP, a domain and HTTPS reverse proxy, API access protection/rate limiting, secure secret configuration, and registration of the originating static IP in the Kite Developer Console.
+
+See [backend deployment guide](backend/README.md).
 
 ## Planned engineering phases
-1. Backend service, database, authentication, secure secrets management and audit logging.
-2. Current NSE instrument master and Kite Connect market-data/WebSocket integration.
-3. Historical candle service and (separately) archived/licensed historical option-chain snapshots for replay; then paper execution simulator with slippage, order types, partial fills and rejection handling.
-4. Independent multi-leg strategy engines with deterministic order-state tracking and reconciliation.
-5. Server-side portfolio risk manager: daily loss, exposure, capital allocation, duplicate-order protection, disconnect safeguards and emergency controls.
-6. Broker live execution only after current broker/exchange requirements are verified, deployment controls are in place, and end-to-end paper tests pass.
+1. Complete secure public deployment controls (TLS reverse proxy, API authentication, rate limiting and monitoring).
+2. Add Kite WebSocket tick streaming and a secured browser feed.
+3. Add timestamped option-chain snapshot storage for future replay. Historical candles alone cannot reconstruct old full option chains or expired strikes.
+4. Build paper-trading simulation, order-state tracking and portfolio risk controls.
+5. Consider live execution only after current Zerodha/NSE/SEBI requirements are confirmed and end-to-end safeguards are tested.
 
 ## Security
-Never commit API keys, API secrets, access tokens, PINs, TOTP seeds or other broker credentials to this repository or frontend code. Credentials must remain server-side in a secure secret store.
-
-
-## Required study mode: market-closed option chain
-The Option Chain must remain useful after NSE market hours. When the market is closed, show the latest available contract prices/previous-session close for every available strike in the selected underlying and expiry, clearly labelled **MARKET CLOSED** with the exchange date and last-traded timestamp where available. Keep CE and PE side-by-side and retain OI, change in OI and session volume only when returned by the API; distinguish stale/unavailable bid-ask quotes from live quotes. Do not imply that closed-session values are executable live prices.
-
-For reliable study history, the backend should save an end-of-session option-chain snapshot for all selected active F&O contracts (instrument token, symbol, expiry, strike, CE/PE, LTP/close, OHLC, volume, OI, quote timestamp and available depth fields). This archive starts from the date integration is enabled. Kite historical candles alone do not recreate a complete historical chain for past dates or expired strikes, so older chain history must not be fabricated.
+Never commit API keys, API secrets, access tokens, PINs, TOTP seeds or other broker credentials to this repository or frontend code. Keep credentials only in a private server-side secret manager or protected environment file.
