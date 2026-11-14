@@ -368,6 +368,15 @@ async def market_stream(
             "underlying": name,
             "expiry": chosen_expiry.isoformat(),
             "subscribed_instruments": len(tokens),
+            "contracts": [
+                {
+                    "instrument_token": int(item["instrument_token"]),
+                    "symbol": item["tradingsymbol"],
+                    "strike": float(item["strike"]),
+                    "option_type": item["instrument_type"],
+                }
+                for item in selected
+            ],
             "mode": "full",
             "live_trading_enabled": False,
         })
