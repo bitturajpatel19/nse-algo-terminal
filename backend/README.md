@@ -11,15 +11,18 @@ FastAPI backend for a read-only Zerodha Kite Connect market-data integration.
 - Read-only near-ATM index option-chain quote snapshot: `/market/option-chain?underlying=NIFTY`.
 - Supports NIFTY, BANKNIFTY, FINNIFTY and MIDCPNIFTY; nearest expiry by default, or pass `expiry=YYYY-MM-DD`.
 - Kite quotes for LTP, OI, volume and top bid/ask where provided.
-- No order placement and no live WebSocket streaming yet.
+- Read-only near-ATM option-chain streaming endpoint at `/market/stream` using KiteTicker full mode; browser access is gated by a server-side `STREAM_ACCESS_TOKEN`.
+- No order placement.
 
 ## Local development
 1. Use Python 3.11+ and install dependencies: `pip install -r requirements.txt`.
 2. Copy `.env.example` to `.env`.
 3. Put API key and secret only in the private `.env` file or a hosting secret manager. Never commit or share them.
 4. In the Kite Developer Console, set the app Redirect URL to the exact callback URL used by your environment. For local testing: `http://127.0.0.1:8000/kite/callback`.
-5. Run `uvicorn app.main:app --host 127.0.0.1 --port 8000` from this folder.
-6. Open `http://127.0.0.1:8000/kite/login`, complete Zerodha login, then test `/market/option-chain?underlying=NIFTY`.
+5. Generate a long random `STREAM_ACCESS_TOKEN` and keep it only in the private `.env` / hosting secret manager. Do not use a short or guessable value.
+6. Run `uvicorn app.main:app --host 127.0.0.1 --port 8000` from this folder.
+7. Open `http://127.0.0.1:8000/kite/login`, complete Zerodha login, then test `/market/option-chain?underlying=NIFTY`.
+8. The WebSocket route is `/market/stream?token=...&underlying=NIFTY`; use `ws://127.0.0.1:8000` locally and `wss://YOUR-DOMAIN` behind HTTPS in production. Optional parameters: `expiry=YYYY-MM-DD` and `strikes_each_side=10`.
 
 ## Docker deployment preparation
 This repository now includes a Dockerfile and Compose configuration. These are deployment foundations, not a claim that a VPS has been provisioned or the service is publicly deployed.
@@ -35,7 +38,7 @@ This repository now includes a Dockerfile and Compose configuration. These are d
 9. Register the VPS's fixed public IP in the Kite Developer Console as the primary static IP, following Zerodha's current instructions. If a secondary IP is configured, it must also be a stable IP from which requests can originate.
 10. Recheck the redirect URL, HTTPS, firewall, CORS origin and registered static IP before enabling any future order workflow.
 
-Do not publish a public API until authentication, rate limiting, TLS, monitoring and access restrictions are implemented and tested. CORS is not authentication.
+Do not publish a public API until authentication, rate limiting, TLS, monitoring and access restrictions are implemented and tested. CORS is not authentication. The WebSocket currently uses a server-side query-string secret because browser WebSocket APIs do not support arbitrary authorization headers; configure reverse-proxy access-log redaction and rotate this secret if exposed. Do not expose the endpoint publicly until TLS, secret redaction, rate limiting and session controls are in place.
 
 ## Important runtime limitation
 - The current Kite access token is held in process memory. The container intentionally runs one Uvicorn worker; multiple workers would have separate in-memory sessions. A container restart clears the token and daily Kite login is expected.
@@ -45,8 +48,8 @@ Do not publish a public API until authentication, rate limiting, TLS, monitoring
 - Historical candles do not recreate full historical option chains. Archive only data permitted by broker/data terms, starting when collection is enabled.
 
 ## Current next engineering phases
-1. Add TLS reverse-proxy configuration, API authentication and rate limiting before public exposure.
-2. Add WebSocket tick streaming and a secured browser feed.
+1. Add TLS reverse-proxy configuration, API authentication, rate limiting and WebSocket query-secret redaction before public exposure.
+2. Add multi-client stream management, reconnect/backoff, bounded tick fan-out and secured browser UI integration.
 3. Add snapshot persistence with timestamped archive.
 4. Add paper-trading execution, fill simulation and risk controls.
 5. Validate disconnect/reconnect and order reconciliation before considering any live order capability.
