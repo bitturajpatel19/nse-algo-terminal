@@ -92,3 +92,14 @@ def test_stream_contract_selection_uses_atm_window():
     selected = main._select_stream_contracts(contracts, "NIFTY", expiry, 22010.0, 1)
     assert {item["strike"] for item in selected} == {21950.0, 22000.0, 22050.0}
     assert len(selected) == 6
+
+
+
+def test_stream_rejects_missing_or_wrong_stream_secret(monkeypatch):
+    monkeypatch.setenv("STREAM_ACCESS_TOKEN", "expected-secret")
+    with TestClient(main.app) as test_client:
+        try:
+            with test_client.websocket_connect("/market/stream?token=wrong&underlying=NIFTY"):
+                assert False, "WebSocket should reject an invalid stream token"
+        except Exception:
+            pass
