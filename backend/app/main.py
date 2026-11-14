@@ -2,6 +2,8 @@
 
 No order placement is implemented. Tokens stay server-side in process memory.
 """
+import asyncio
+import hmac
 import os
 from datetime import date
 from pathlib import Path
@@ -9,10 +11,10 @@ from threading import Lock
 from typing import Any
 
 from dotenv import load_dotenv
-from fastapi import FastAPI, HTTPException, Query
+from fastapi import FastAPI, HTTPException, Query, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, RedirectResponse
-from kiteconnect import KiteConnect
+from kiteconnect import KiteConnect, KiteTicker
 
 load_dotenv(Path(__file__).resolve().parents[1] / ".env")
 
@@ -244,6 +246,149 @@ def option_chain(
         },
     }
 
+
+
+def _select_stream_contracts(
+    instruments: list[dict[str, Any]],
+    underlying: str,
+    expiry: date,
+    spot: float,
+    strikes_each_side: int,
+) -> list[dict[str, Any]]:
+    contracts = [
+        item for item in instruments
+        if item.get("name") == underlying
+        and item.get("instrument_type") in ("CE", "PE")
+        and item.get("expiry") == expiry
+    ]
+    strikes = sorted({float(item["strike"]) for item in contracts})
+    if not strikes:
+        raise HTTPException(status_code=404, detail="No option contracts found for this expiry")
+    atm_index = min(range(len(strikes)), key=lambda index: abs(strikes[index] - spot))
+    chosen = set(strikes[max(0, atm_index - strikes_each_side):atm_index + strikes_each_side + 1])
+    return [item for item in contracts if float(item["strike"]) in chosen]
+
+
+@app.websocket("/market/stream")
+async def market_stream(
+    websocket: WebSocket,
+    token: str = Query(..., description="Server-configured stream access token"),
+    underlying: str = Query(default="NIFTY"),
+    expiry: str | None = Query(default=None, description="YYYY-MM-DD; omit for nearest expiry"),
+    strikes_each_side: int = Query(default=10, ge=1, le=30),
+):
+    """Read-only KiteTicker stream for a selected near-ATM index option chain."""
+    expected = os.getenv("STREAM_ACCESS_TOKEN", "").strip()
+    if not expected or not hmac.compare_digest(token, expected):
+        await websocket.close(code=1008, reason="Stream authentication failed")
+        return
+    name = underlying.strip().upper()
+    if name not in SPOT_SYMBOLS:
+        await websocket.close(code=1008, reason="Unsupported underlying")
+        return
+    requested_expiry = None
+    if expiry:
+        try:
+            requested_expiry = date.fromisoformat(expiry)
+        except ValueError:
+            await websocket.close(code=1008, reason="Invalid expiry; use YYYY-MM-DD")
+            return
+    try:
+        kite = _kite_client()
+        instruments = _load_nfo_instruments(kite)
+        spot_quote = kite.quote(SPOT_SYMBOLS[name]).get(SPOT_SYMBOLS[name], {})
+        spot = spot_quote.get("last_price") or spot_quote.get("ohlc", {}).get("close")
+        if spot is None:
+            await websocket.close(code=1011, reason="Spot quote unavailable")
+            return
+        available = sorted({
+            item["expiry"] for item in instruments
+            if item.get("name") == name and item.get("instrument_type") in ("CE", "PE")
+            and item.get("expiry") and item["expiry"] >= date.today()
+        })
+        chosen_expiry = requested_expiry or (available[0] if available else None)
+        if chosen_expiry not in available:
+            await websocket.close(code=1008, reason="Requested expiry unavailable")
+            return
+        selected = _select_stream_contracts(
+            instruments, name, chosen_expiry, float(spot), strikes_each_side
+        )
+        tokens = sorted({int(item["instrument_token"]) for item in selected})
+        if not tokens:
+            await websocket.close(code=1008, reason="No contracts selected")
+            return
+        with _token_lock:
+            api_key = os.getenv("KITE_API_KEY", "").strip()
+            access_token = _kite_access_token
+        if not api_key or not access_token:
+            await websocket.close(code=1008, reason="Kite session is not connected")
+            return
+    except HTTPException as exc:
+        await websocket.close(code=1011, reason=str(exc.detail)[:120])
+        return
+    except Exception:
+        await websocket.close(code=1011, reason="Could not prepare market stream")
+        return
+
+    await websocket.accept()
+    loop = asyncio.get_running_loop()
+    queue: asyncio.Queue[dict[str, Any]] = asyncio.Queue(maxsize=2000)
+    ticker = KiteTicker(api_key, access_token)
+
+    def on_ticks(_ws, ticks):
+        for tick in ticks:
+            payload = dict(tick)
+            try:
+                loop.call_soon_threadsafe(queue.put_nowait, payload)
+            except RuntimeError:
+                return
+
+    def on_connect(ws, _response):
+        ws.subscribe(tokens)
+        ws.set_mode(ws.MODE_FULL, tokens)
+
+    def on_error(_ws, code, reason):
+        try:
+            loop.call_soon_threadsafe(
+                queue.put_nowait,
+                {"_stream_error": {"code": code, "message": str(reason)}},
+            )
+        except RuntimeError:
+            pass
+
+    ticker.on_ticks = on_ticks
+    ticker.on_connect = on_connect
+    ticker.on_error = on_error
+    try:
+        ticker.connect(threaded=True)
+        await websocket.send_json({
+            "type": "stream_status",
+            "status": "connecting",
+            "source": "Zerodha KiteTicker",
+            "underlying": name,
+            "expiry": chosen_expiry.isoformat(),
+            "subscribed_instruments": len(tokens),
+            "mode": "full",
+            "live_trading_enabled": False,
+        })
+        while True:
+            try:
+                tick = await asyncio.wait_for(queue.get(), timeout=30)
+                await websocket.send_json({"type": "tick", "data": tick})
+            except asyncio.TimeoutError:
+                await websocket.send_json({"type": "heartbeat", "status": "connected"})
+    except WebSocketDisconnect:
+        pass
+    except Exception:
+        try:
+            await websocket.close(code=1011, reason="Market stream disconnected")
+        except Exception:
+            pass
+    finally:
+        try:
+            ticker.close()
+        except Exception:
+            pass
 
 @app.get("/market/instruments/status")
 def instrument_status():
