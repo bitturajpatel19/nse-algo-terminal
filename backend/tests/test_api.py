@@ -73,3 +73,22 @@ def test_option_chain_snapshot_shape(monkeypatch):
     assert body["rows"][1]["ce"]["ltp"] == 100
     assert body["rows"][1]["pe"]["ask"] == 101
     assert body["data_quality"]["quote_snapshot_only"] is True
+
+
+
+def test_stream_contract_selection_uses_atm_window():
+    expiry = date.today() + timedelta(days=7)
+    contracts = []
+    for strike in (21900.0, 21950.0, 22000.0, 22050.0, 22100.0):
+        for option_type in ("CE", "PE"):
+            contracts.append({
+                "name": "NIFTY",
+                "instrument_type": option_type,
+                "expiry": expiry,
+                "strike": strike,
+                "tradingsymbol": f"NIFTY{int(strike)}{option_type}",
+                "instrument_token": int(strike) + (1 if option_type == "CE" else 2),
+            })
+    selected = main._select_stream_contracts(contracts, "NIFTY", expiry, 22010.0, 1)
+    assert {item["strike"] for item in selected} == {21950.0, 22000.0, 22050.0}
+    assert len(selected) == 6
